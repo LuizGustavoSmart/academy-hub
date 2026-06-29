@@ -52,8 +52,8 @@ export function FinanceiroPage() {
       <div className="panel" style={{ marginBottom: 20 }}>
         <div className="panel-body" style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12 }}>
           <FinField label="Câmbio (R$/USD)" value={fin.cambio} onSave={(v) => update.mutate({ cambio: v })} step="0.01" />
-          <FinField label="Tier Standard (R$)" value={fin.tier_standard} onSave={(v) => update.mutate({ tier_standard: v })} />
-          <FinField label="Tier Premium (R$)" value={fin.tier_premium} onSave={(v) => update.mutate({ tier_premium: v })} />
+          <FinField label="Tier Cliente Matter (R$)" value={fin.tier_standard} onSave={(v) => update.mutate({ tier_standard: v })} />
+          <FinField label="Tier Standard (R$)" value={fin.tier_premium} onSave={(v) => update.mutate({ tier_premium: v })} />
           <FinField label="Vagas mínimas" value={fin.min_vagas} onSave={(v) => update.mutate({ min_vagas: v })} />
           <FinField label="Vagas meta" value={fin.meta_vagas} onSave={(v) => update.mutate({ meta_vagas: v })} />
         </div>
@@ -84,7 +84,7 @@ export function FinanceiroPage() {
                 <td>{p.nome}</td>
                 <td>
                   <span className={`badge ${p.tier === "premium" ? "badge-blue" : "badge-neutral"}`}>
-                    {p.tier === "premium" ? "Premium" : "Standard"}
+                    {p.tier === "premium" ? "Standard" : "Cliente Matter"}
                   </span>
                 </td>
                 <td style={{ fontWeight: 500 }}>{fmtBRL(Number(p.valor_pago))}</td>

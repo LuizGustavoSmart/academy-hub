@@ -9,7 +9,7 @@ export function DashboardPage() {
   const confirmed = participants.filter((p) => p.pagamento_status === "confirmado");
   const pagamentosRecebidos = confirmed.reduce((s, p) => s + Number(p.valor_pago || 0), 0);
   const minVagas = fin?.min_vagas ?? 20;
-  const tierStandard = Number(fin?.tier_standard ?? 99000);
+  const tierStandard = Number(fin?.tier_standard ?? 93600);
   const breakEvenTotal = minVagas * tierStandard;
   const falta = Math.max(0, breakEvenTotal - pagamentosRecebidos);
 

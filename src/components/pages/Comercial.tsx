@@ -357,7 +357,7 @@ function PromoteToParticipantModal({ lead, onClose }: { lead: Lead; onClose: () 
     email: "",
     restricoes_alimentares: "",
     tier: "standard",
-    valor_pago: 99000,
+    valor_pago: 93600,
     pagamento_status: "confirmado" as const,
     status: "em_andamento",
   });
@@ -380,11 +380,11 @@ function PromoteToParticipantModal({ lead, onClose }: { lead: Lead; onClose: () 
             className="form-select"
             value={form.tier}
             onChange={(e) =>
-              setForm({ ...form, tier: e.target.value, valor_pago: e.target.value === "premium" ? 115500 : 99000 })
+              setForm({ ...form, tier: e.target.value, valor_pago: e.target.value === "premium" ? 109200 : 93600 })
             }
           >
-            <option value="standard">Standard (R$ 99.000)</option>
-            <option value="premium">Premium (R$ 115.500)</option>
+            <option value="standard">Cliente Matter (R$ 93.600)</option>
+            <option value="premium">Standard (R$ 109.200)</option>
           </select>
         </div>
         <div className="form-group">

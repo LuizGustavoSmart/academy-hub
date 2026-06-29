@@ -124,7 +124,7 @@ export function ParticipantModal({
     restricoes_alimentares: "",
     observacoes: "",
     tier: "standard",
-    valor_pago: 99000,
+    valor_pago: 93600,
     pagamento_status: "pendente",
     status: "em_andamento",
     ...initial,
@@ -168,9 +168,9 @@ export function ParticipantModal({
         </div>
         <div className="form-group">
           <label className="form-label">Tier</label>
-          <select className="form-select" value={form.tier} onChange={(e) => setForm({ ...form, tier: e.target.value, valor_pago: e.target.value === "premium" ? 115500 : 99000 })}>
-            <option value="standard">Standard (R$ 99.000)</option>
-            <option value="premium">Premium (R$ 115.500)</option>
+          <select className="form-select" value={form.tier} onChange={(e) => setForm({ ...form, tier: e.target.value, valor_pago: e.target.value === "premium" ? 109200 : 93600 })}>
+            <option value="standard">Cliente Matter (R$ 93.600)</option>
+            <option value="premium">Standard (R$ 109.200)</option>
           </select>
         </div>
         <div className="form-group">
