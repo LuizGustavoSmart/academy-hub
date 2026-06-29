@@ -359,6 +359,7 @@ function PromoteToParticipantModal({ lead, onClose }: { lead: Lead; onClose: () 
     tier: "standard",
     valor_pago: 93600,
     pagamento_status: "confirmado" as const,
+    contrato_status: "assinado" as const,
     status: "em_andamento",
   });
 

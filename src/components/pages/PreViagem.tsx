@@ -1,4 +1,4 @@
-import { useParticipants, useTouchpoints, useUpsertTouchpoint, type Participant } from "@/lib/api";
+import { useParticipants, useTouchpoints, useUpsertTouchpoint, type Participant, type Touchpoint } from "@/lib/api";
 import { MensagensAccordion } from "@/components/MensagensAccordion";
 import { PendenciasList } from "@/components/PendenciasList";
 
@@ -12,6 +12,44 @@ const TP_NAMES: Record<string, string> = {
   "D-7": "Vídeos",
   "D-3": "Pré-emb.",
 };
+
+// Embarque: 28/10/2026
+const DEPARTURE_DATE = new Date("2026-10-28");
+const TP_DAYS: Record<string, number> = {
+  "D-60": 60, "D-45": 45, "D-30": 30, "D-21": 21, "D-14": 14, "D-7": 7, "D-3": 3,
+};
+
+function getTpDate(code: string): Date {
+  const d = new Date(DEPARTURE_DATE);
+  d.setDate(d.getDate() - TP_DAYS[code]);
+  return d;
+}
+
+function getTpDateLabel(code: string): string {
+  return getTpDate(code).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+type TpState = "future" | "active" | "overdue" | "done";
+
+function getTpState(code: string, status: string): TpState {
+  if (status === "realizado") return "done";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tp = getTpDate(code); tp.setHours(0, 0, 0, 0);
+  if (today < tp) return "future";
+  if (today.getTime() === tp.getTime()) return "active";
+  return "overdue";
+}
+
+function getActiveStage(pid: string, tpsList: Touchpoint[]): string | null {
+  const getStatus = (code: string) =>
+    tpsList.find((t) => t.participant_id === pid && t.touchpoint_code === code)?.status ?? "nao_iniciado";
+  for (const code of TPS) {
+    const state = getTpState(code, getStatus(code));
+    if (state === "overdue" || state === "active") return code;
+    if (state === "future") return null;
+  }
+  return null;
+}
 
 export function PreViagemPage({ sub }: { sub: string }) {
   if (sub === "pipeline") return <TouchpointGrid />;
@@ -74,29 +112,42 @@ function Metric({ icon, label, value, sub }: any) {
 }
 
 function TouchpointGrid() {
-  const { data: parts = [] } = useParticipants();
+  const { data: allParts = [] } = useParticipants();
   const { data: tps = [] } = useTouchpoints();
   const upsert = useUpsertTouchpoint();
 
-  const getStatus = (pid: string, code: string) => tps.find((t) => t.participant_id === pid && t.touchpoint_code === code)?.status ?? "nao_iniciado";
+  // Apenas participantes com contrato assinado e pagamento confirmado
+  const parts = allParts.filter(
+    (p) => p.pagamento_status === "confirmado" && p.contrato_status === "assinado"
+  );
 
-  const cycle = (cur: string) =>
-    cur === "nao_iniciado" ? "pendente" : cur === "pendente" ? "realizado" : "nao_iniciado";
+  const getStatus = (pid: string, code: string) =>
+    tps.find((t) => t.participant_id === pid && t.touchpoint_code === code)?.status ?? "nao_iniciado";
 
-  const statusGeral = (p: Participant) => {
-    const total = TPS.length;
-    const realizados = TPS.filter((c) => getStatus(p.id, c) === "realizado").length;
-    if (realizados === 0) return { label: "Não iniciado", cls: "badge-neutral" };
-    if (realizados === total) return { label: "Concluído", cls: "badge-ok" };
-    return { label: "Em andamento", cls: "badge-warn" };
+  const handleClick = (pid: string, code: string, st: string, state: TpState) => {
+    if (state === "future") return;
+    upsert.mutate({ participant_id: pid, touchpoint_code: code, status: st === "realizado" ? "nao_iniciado" : "realizado" });
   };
+
+  const overdueCount = parts.reduce(
+    (acc, p) => acc + TPS.filter((c) => getTpState(c, getStatus(p.id, c)) === "overdue").length,
+    0
+  );
 
   return (
     <div className="main">
-      <div className="section-label" style={{ marginTop: 0 }}>Pipeline de engajamento pré-viagem — por participante</div>
-      <div className="nota-estrategica">
-        <strong>Como ler:</strong> cada linha é um participante; cada coluna é um touchpoint. Clique nas células para alternar entre <strong>cinza</strong> (não iniciado), <strong>âmbar</strong> (pendente) e <strong>verde</strong> (realizado).
-      </div>
+      <div className="section-label" style={{ marginTop: 0 }}>Pipeline pré-viagem — por participante</div>
+      {overdueCount > 0 && (
+        <div className="nota-critica">
+          <strong><i className="ti ti-alert-triangle" /> {overdueCount} touchpoint{overdueCount > 1 ? "s" : ""} atrasado{overdueCount > 1 ? "s" : ""}.</strong>{" "}
+          Conclua os itens em vermelho para avançar o pipeline.
+        </div>
+      )}
+      {parts.length === 0 && (
+        <div className="nota-estrategica">
+          Nenhum participante com contrato assinado e pagamento confirmado ainda. Promova um lead ao P7 no funil comercial para que apareça aqui.
+        </div>
+      )}
       <div className="table-wrap">
         <table>
           <thead>
@@ -104,20 +155,18 @@ function TouchpointGrid() {
               <th>Participante</th>
               {TPS.map((c) => (
                 <th key={c} style={{ textAlign: "center" }}>
-                  {c}
-                  <br />
+                  {c}<br />
+                  <span style={{ fontWeight: 400, color: "var(--text3)", fontSize: 10 }}>{getTpDateLabel(c)}</span><br />
                   <span style={{ fontWeight: 400, color: "var(--text3)" }}>{TP_NAMES[c]}</span>
                 </th>
               ))}
-              <th>Status geral</th>
+              <th>Etapa atual</th>
             </tr>
           </thead>
           <tbody>
-            {parts.length === 0 && (
-              <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--text3)", padding: 16 }}>Sem participantes confirmados ainda.</td></tr>
-            )}
             {parts.map((p) => {
-              const sg = statusGeral(p);
+              const activeStage = getActiveStage(p.id, tps);
+              const allDone = TPS.every((c) => getStatus(p.id, c) === "realizado");
               return (
                 <tr key={p.id}>
                   <td>
@@ -126,21 +175,44 @@ function TouchpointGrid() {
                   </td>
                   {TPS.map((code) => {
                     const st = getStatus(p.id, code);
+                    const state = getTpState(code, st);
+                    const dotStyle =
+                      state === "overdue"
+                        ? { background: "var(--accent-light)", borderColor: "transparent", color: "var(--accent)" }
+                        : undefined;
+                    const dotClass =
+                      state === "done" ? "done" : state === "active" ? "pend" : "";
+                    const title =
+                      state === "future" ? `Disponível em ${getTpDateLabel(code)}`
+                      : state === "overdue" ? "Atrasado — clique para concluir"
+                      : state === "active" ? "Clique para concluir"
+                      : "Concluído — clique para desfazer";
                     return (
                       <td key={code} style={{ textAlign: "center" }}>
                         <span
-                          className={`check-dot ${st === "realizado" ? "done" : st === "pendente" ? "pend" : ""}`}
-                          onClick={() =>
-                            upsert.mutate({ participant_id: p.id, touchpoint_code: code, status: cycle(st) })
-                          }
-                          title={st}
+                          className={`check-dot ${dotClass}`}
+                          style={{ ...dotStyle, cursor: state === "future" ? "default" : "pointer" }}
+                          onClick={() => handleClick(p.id, code, st, state)}
+                          title={title}
                         >
-                          {st === "realizado" ? <i className="ti ti-check" style={{ fontSize: 10 }} /> : st === "pendente" ? "—" : "·"}
+                          {state === "done"
+                            ? <i className="ti ti-check" style={{ fontSize: 10 }} />
+                            : state === "overdue"
+                            ? <i className="ti ti-alert-triangle" style={{ fontSize: 9 }} />
+                            : state === "active" ? "●" : "·"}
                         </span>
                       </td>
                     );
                   })}
-                  <td><span className={`badge ${sg.cls}`}>{sg.label}</span></td>
+                  <td>
+                    {allDone ? (
+                      <span className="badge badge-ok">Concluído</span>
+                    ) : activeStage ? (
+                      <span className="badge badge-warn">{activeStage} — {TP_NAMES[activeStage]}</span>
+                    ) : (
+                      <span className="badge badge-neutral">Aguardando D-60</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -148,8 +220,9 @@ function TouchpointGrid() {
         </table>
       </div>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 8 }}>
-        <Legend cls="done" label="Realizado" />
-        <Legend cls="pend" label="Pendente / atrasado" />
+        <Legend cls="done" label="Concluído" />
+        <Legend cls="pend" label="Para concluir hoje" />
+        <Legend cls="overdue" label="Atrasado" />
         <Legend cls="" label="Ainda não chegou" />
       </div>
     </div>
@@ -157,10 +230,14 @@ function TouchpointGrid() {
 }
 
 function Legend({ cls, label }: { cls: string; label: string }) {
+  const overdueStyle = cls === "overdue"
+    ? { background: "var(--accent-light)", borderColor: "transparent", color: "var(--accent)" }
+    : undefined;
+  const dotClass = cls === "overdue" ? "" : cls;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text2)" }}>
-      <span className={`check-dot ${cls}`} style={{ width: 16, height: 16, fontSize: 9 }}>
-        {cls === "done" ? <i className="ti ti-check" style={{ fontSize: 9 }} /> : cls === "pend" ? "—" : "·"}
+      <span className={`check-dot ${dotClass}`} style={{ width: 16, height: 16, fontSize: 9, ...overdueStyle }}>
+        {cls === "done" ? <i className="ti ti-check" style={{ fontSize: 9 }} /> : cls === "overdue" ? <i className="ti ti-alert-triangle" style={{ fontSize: 8 }} /> : cls === "pend" ? "●" : "·"}
       </span>
       {label}
     </div>
@@ -168,7 +245,10 @@ function Legend({ cls, label }: { cls: string; label: string }) {
 }
 
 function PartsCompactList() {
-  const { data: parts = [] } = useParticipants();
+  const { data: allParts = [] } = useParticipants();
+  const parts = allParts.filter(
+    (p) => p.pagamento_status === "confirmado" && p.contrato_status === "assinado"
+  );
   return (
     <div className="main">
       <div className="section-label" style={{ marginTop: 0 }}>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   useCreateParticipant,
+  useCreateLead,
   useDeleteParticipant,
   useParticipants,
   useUpdateParticipant,
@@ -47,7 +48,7 @@ export function ParticipantesPage({
           Participantes
         </div>
         <button className="btn-primary" onClick={() => setCreating(true)} style={{ fontSize: 12, padding: "7px 14px" }}>
-          <i className="ti ti-plus" /> Novo participante
+          <i className="ti ti-plus" /> Novo cliente
         </button>
       </div>
       <div className="table-wrap">
@@ -99,8 +100,54 @@ export function ParticipantesPage({
           </tbody>
         </table>
       </div>
-      {creating && <ParticipantModal open onClose={() => setCreating(false)} />}
+      {creating && <NovoClienteModal open onClose={() => setCreating(false)} />}
     </div>
+  );
+}
+
+function NovoClienteModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const create = useCreateLead();
+  const [form, setForm] = useState({ nome: "", cargo: "", empresa: "", cidade: "", responsavel: "caetano", status: "abordado" });
+  const submit = () => {
+    if (!form.nome.trim()) return;
+    create.mutate({ ...form, passo: 1, ordem: 0 }, { onSuccess: onClose });
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="Novo cliente">
+      <p style={{ fontSize: 12, color: "var(--text2)", marginBottom: 14 }}>
+        O cliente entrará em <strong>P1 — Início do funil comercial</strong>. Será promovido a participante confirmado após assinar o contrato e confirmar pagamento (P7).
+      </p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div className="form-group" style={{ gridColumn: "span 2" }}>
+          <label className="form-label">Nome *</label>
+          <input className="form-input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Cargo</label>
+          <input className="form-input" value={form.cargo} onChange={(e) => setForm({ ...form, cargo: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Empresa</label>
+          <input className="form-input" value={form.empresa} onChange={(e) => setForm({ ...form, empresa: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Cidade</label>
+          <input className="form-input" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Responsável</label>
+          <select className="form-select" value={form.responsavel} onChange={(e) => setForm({ ...form, responsavel: e.target.value })}>
+            <option value="caetano">Caetano</option>
+            <option value="roque">Roque</option>
+            <option value="ambos">Caetano + Roque</option>
+          </select>
+        </div>
+      </div>
+      <div className="flex-end">
+        <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+        <button className="btn-primary" onClick={submit}>Adicionar ao funil</button>
+      </div>
+    </Modal>
   );
 }
 
