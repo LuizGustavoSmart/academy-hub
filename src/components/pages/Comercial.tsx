@@ -19,8 +19,10 @@ import {
   useParticipants,
   usePendencias,
   useUpdateLead,
+  useUpdateParticipant,
   useCreateParticipant,
   type Lead,
+  type Participant,
 } from "@/lib/api";
 import { Modal } from "@/components/Modal";
 import { MensagensAccordion } from "@/components/MensagensAccordion";
@@ -84,8 +86,8 @@ function LeadsTab() {
   const { data: participants = [] } = useParticipants();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
+  const [editingPart, setEditingPart] = useState<Participant | null>(null);
 
-  // Participantes que não possuem lead correspondente (pelo nome)
   const leadNames = new Set(leads.map((l) => l.nome.toLowerCase().trim()));
   const orphanParticipants = participants.filter(
     (p) => !leadNames.has(p.nome.toLowerCase().trim())
@@ -143,7 +145,11 @@ function LeadsTab() {
                 <td>{PASSO_LABELS[7]}</td>
                 <td><span className="badge badge-blue">Caetano</span></td>
                 <td><span className="badge badge-ok">Confirmado</span></td>
-                <td />
+                <td>
+                  <button className="btn-secondary" style={{ padding: "4px 10px", fontSize: 11 }} onClick={() => setEditingPart(p)}>
+                    <i className="ti ti-pencil" />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -151,6 +157,7 @@ function LeadsTab() {
       </div>
       {creating && <LeadModal open onClose={() => setCreating(false)} />}
       {editing && <LeadModal open onClose={() => setEditing(null)} lead={editing} />}
+      {editingPart && <OrphanEditModal participant={editingPart} onClose={() => setEditingPart(null)} />}
     </div>
   );
 }
@@ -159,22 +166,41 @@ function PipelineTab() {
   const { data: leads = [] } = useLeads();
   const { data: participants = [] } = useParticipants();
   const update = useUpdateLead();
+  const createLead = useCreateLead();
   const del = useDeleteLead();
   const [modalStage, setModalStage] = useState<number | null>(null);
   const [promoteLead, setPromoteLead] = useState<Lead | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  // Participantes sem lead correspondente (pelo nome) — aparecem fixos em P7
   const leadNames = new Set(leads.map((l) => l.nome.toLowerCase().trim()));
   const orphanParticipants = participants.filter(
     (p) => !leadNames.has(p.nome.toLowerCase().trim())
   );
 
   const onDragEnd = (e: DragEndEvent) => {
-    const leadId = String(e.active.id);
+    const rawId = String(e.active.id);
     const targetStage = e.over?.id != null ? Number(e.over.id) : null;
     if (!targetStage) return;
+
+    if (rawId.startsWith("part-")) {
+      const partId = rawId.slice(5);
+      const part = orphanParticipants.find((p) => p.id === partId);
+      if (!part) return;
+      createLead.mutate({
+        nome: part.nome,
+        cargo: part.cargo,
+        empresa: part.empresa,
+        cidade: part.cidade,
+        passo: targetStage,
+        responsavel: "caetano",
+        status: "abordado",
+        ordem: 0,
+      });
+      return;
+    }
+
+    const leadId = rawId;
     const lead = leads.find((l) => l.id === leadId);
     if (!lead || lead.passo === targetStage) return;
     update.mutate({ id: leadId, patch: { passo: targetStage } });
@@ -225,7 +251,7 @@ function Stage({
 }: {
   stage: number;
   leads: Lead[];
-  orphanParticipants?: { id: string; nome: string; empresa: string | null; cidade: string | null }[];
+  orphanParticipants?: Participant[];
   onAdd: () => void;
   onDelete: (id: string) => void;
 }) {
@@ -242,11 +268,7 @@ function Stage({
           <LeadCard key={l.id} lead={l} onDelete={() => onDelete(l.id)} />
         ))}
         {orphanParticipants.map((p) => (
-          <div key={`part-${p.id}`} className="lead-card" style={{ borderLeft: "3px solid var(--teal)" }}>
-            <div style={{ fontSize: 12, fontWeight: 500 }}>{p.nome}</div>
-            <div className="lead-meta">{[p.empresa, p.cidade].filter(Boolean).join(" · ") || "—"}</div>
-            <span className="badge badge-ok" style={{ fontSize: 10, marginTop: 4 }}>Confirmado</span>
-          </div>
+          <OrphanCard key={`part-${p.id}`} participant={p} />
         ))}
         {leads.length === 0 && orphanParticipants.length === 0 && stage === 6 && (
           <div style={{ fontSize: 11, color: "var(--accent)", padding: 6, display: "flex", alignItems: "center", gap: 4 }}>
@@ -284,6 +306,72 @@ function LeadCard({ lead, onDelete }: { lead: Lead; onDelete: () => void }) {
         <i className="ti ti-user" style={{ fontSize: 10 }} /> {respLabel(lead.responsavel)}
       </span>
     </div>
+  );
+}
+
+function OrphanCard({ participant: p }: { participant: Participant }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `part-${p.id}` });
+  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      className={`lead-card${isDragging ? " dragging" : ""}`}
+      style={{ ...style, borderLeft: "3px solid var(--teal)" }}
+    >
+      <div className="lead-card-handle" {...listeners} title="Arrastar para outra etapa">
+        <i className="ti ti-grip-vertical" />
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 500, paddingLeft: 16 }}>{p.nome}</div>
+      <div className="lead-meta">{[p.empresa, p.cidade].filter(Boolean).join(" · ") || "—"}</div>
+      <span className="badge badge-ok" style={{ fontSize: 10, marginTop: 4 }}>Confirmado</span>
+    </div>
+  );
+}
+
+function OrphanEditModal({ participant, onClose }: { participant: Participant; onClose: () => void }) {
+  const update = useUpdateParticipant();
+  const [form, setForm] = useState({
+    nome: participant.nome,
+    cargo: participant.cargo ?? "",
+    empresa: participant.empresa ?? "",
+    cidade: participant.cidade ?? "",
+    telefone: participant.telefone ?? "",
+    email: participant.email ?? "",
+  });
+  const submit = () => {
+    if (!form.nome.trim()) return;
+    update.mutate({ id: participant.id, patch: form }, { onSuccess: onClose });
+  };
+  return (
+    <Modal open onClose={onClose} title={`Editar — ${participant.nome}`}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div className="form-group" style={{ gridColumn: "span 2" }}>
+          <label className="form-label">Nome *</label>
+          <input className="form-input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Cargo</label>
+          <input className="form-input" value={form.cargo} onChange={(e) => setForm({ ...form, cargo: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Empresa</label>
+          <input className="form-input" value={form.empresa} onChange={(e) => setForm({ ...form, empresa: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Cidade</label>
+          <input className="form-input" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">WhatsApp</label>
+          <input className="form-input" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
+        </div>
+      </div>
+      <div className="flex-end">
+        <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+        <button className="btn-primary" onClick={submit}>Salvar</button>
+      </div>
+    </Modal>
   );
 }
 
