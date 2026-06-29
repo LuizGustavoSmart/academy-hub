@@ -265,19 +265,20 @@ function LeadCard({ lead, onDelete }: { lead: Lead; onDelete: () => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: lead.id });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes} className={`lead-card${isDragging ? " dragging" : ""}`} style={style}>
+    <div ref={setNodeRef} {...attributes} className={`lead-card${isDragging ? " dragging" : ""}`} style={style}>
+      {/* drag handle — apenas este elemento ativa o arrasto */}
+      <div className="lead-card-handle" {...listeners} title="Arrastar para outra etapa">
+        <i className="ti ti-grip-vertical" />
+      </div>
       <button
         className="lead-card-del"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
         onPointerDown={(e) => e.stopPropagation()}
         title="Excluir"
       >
         <i className="ti ti-x" />
       </button>
-      <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.nome}</div>
+      <div style={{ fontSize: 12, fontWeight: 500, paddingLeft: 16 }}>{lead.nome}</div>
       <div className="lead-meta">{[lead.cargo, lead.cidade].filter(Boolean).join(" · ") || "—"}</div>
       <span className={`lead-resp ${respClass(lead.responsavel)}`}>
         <i className="ti ti-user" style={{ fontSize: 10 }} /> {respLabel(lead.responsavel)}
