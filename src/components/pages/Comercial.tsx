@@ -81,8 +81,15 @@ function Metric({ icon, label, value, sub, cls }: any) {
 
 function LeadsTab() {
   const { data: leads = [] } = useLeads();
+  const { data: participants = [] } = useParticipants();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
+
+  // Participantes que não possuem lead correspondente (pelo nome)
+  const leadNames = new Set(leads.map((l) => l.nome.toLowerCase().trim()));
+  const orphanParticipants = participants.filter(
+    (p) => !leadNames.has(p.nome.toLowerCase().trim())
+  );
 
   return (
     <div className="main">
@@ -96,11 +103,11 @@ function LeadsTab() {
         <table>
           <thead>
             <tr>
-              <th>Nome</th><th>Cargo</th><th>Cidade</th><th>Passo</th><th>Responsável</th><th>Status</th><th></th>
+              <th>Nome</th><th>Empresa</th><th>Cidade</th><th>Passo</th><th>Responsável</th><th>Status</th><th></th>
             </tr>
           </thead>
           <tbody>
-            {leads.length === 0 && (
+            {leads.length === 0 && orphanParticipants.length === 0 && (
               <tr>
                 <td colSpan={7} style={{ textAlign: "center", color: "var(--text3)", padding: 16 }}>
                   Nenhum lead cadastrado.
@@ -110,7 +117,7 @@ function LeadsTab() {
             {leads.map((l) => (
               <tr key={l.id}>
                 <td style={{ fontWeight: 500 }}>{l.nome}</td>
-                <td>{l.cargo ?? "—"}</td>
+                <td>{l.empresa ?? "—"}</td>
                 <td>{l.cidade ?? "—"}</td>
                 <td>{PASSO_LABELS[l.passo]}</td>
                 <td>
@@ -128,6 +135,17 @@ function LeadsTab() {
                 </td>
               </tr>
             ))}
+            {orphanParticipants.map((p) => (
+              <tr key={`part-${p.id}`} style={{ opacity: 0.85 }}>
+                <td style={{ fontWeight: 500 }}>{p.nome}</td>
+                <td>{p.empresa ?? "—"}</td>
+                <td>{p.cidade ?? "—"}</td>
+                <td>{PASSO_LABELS[7]}</td>
+                <td><span className="badge badge-blue">Caetano</span></td>
+                <td><span className="badge badge-ok">Confirmado</span></td>
+                <td />
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -139,12 +157,19 @@ function LeadsTab() {
 
 function PipelineTab() {
   const { data: leads = [] } = useLeads();
+  const { data: participants = [] } = useParticipants();
   const update = useUpdateLead();
   const del = useDeleteLead();
   const [modalStage, setModalStage] = useState<number | null>(null);
   const [promoteLead, setPromoteLead] = useState<Lead | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  // Participantes sem lead correspondente (pelo nome) — aparecem fixos em P7
+  const leadNames = new Set(leads.map((l) => l.nome.toLowerCase().trim()));
+  const orphanParticipants = participants.filter(
+    (p) => !leadNames.has(p.nome.toLowerCase().trim())
+  );
 
   const onDragEnd = (e: DragEndEvent) => {
     const leadId = String(e.active.id);
@@ -153,10 +178,7 @@ function PipelineTab() {
     const lead = leads.find((l) => l.id === leadId);
     if (!lead || lead.passo === targetStage) return;
     update.mutate({ id: leadId, patch: { passo: targetStage } });
-    if (targetStage === 7) {
-      // promove a participante
-      setPromoteLead(lead);
-    }
+    if (targetStage === 7) setPromoteLead(lead);
   };
 
   return (
@@ -175,6 +197,7 @@ function PipelineTab() {
                 key={s}
                 stage={s}
                 leads={leads.filter((l) => l.passo === s)}
+                orphanParticipants={s === 7 ? orphanParticipants : []}
                 onAdd={() => setModalStage(s)}
                 onDelete={(id) => del.mutate(id)}
               />
@@ -187,10 +210,7 @@ function PipelineTab() {
         <LeadModal open onClose={() => setModalStage(null)} initialPasso={modalStage} />
       )}
       {promoteLead && (
-        <PromoteToParticipantModal
-          lead={promoteLead}
-          onClose={() => setPromoteLead(null)}
-        />
+        <PromoteToParticipantModal lead={promoteLead} onClose={() => setPromoteLead(null)} />
       )}
     </div>
   );
@@ -199,26 +219,36 @@ function PipelineTab() {
 function Stage({
   stage,
   leads,
+  orphanParticipants = [],
   onAdd,
   onDelete,
 }: {
   stage: number;
   leads: Lead[];
+  orphanParticipants?: { id: string; nome: string; empresa: string | null; cidade: string | null }[];
   onAdd: () => void;
   onDelete: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
+  const totalCount = leads.length + orphanParticipants.length;
   return (
     <div className={`pipeline-stage s${stage}`}>
       <div className="stage-header">
         <div className="stage-name">{PASSO_LABELS[stage]}</div>
-        <div className="stage-count">{leads.length}</div>
+        <div className="stage-count">{totalCount}</div>
       </div>
       <div ref={setNodeRef} className={`stage-body${isOver ? " drop-over" : ""}`}>
         {leads.map((l) => (
           <LeadCard key={l.id} lead={l} onDelete={() => onDelete(l.id)} />
         ))}
-        {leads.length === 0 && stage === 6 && (
+        {orphanParticipants.map((p) => (
+          <div key={`part-${p.id}`} className="lead-card" style={{ borderLeft: "3px solid var(--teal)" }}>
+            <div style={{ fontSize: 12, fontWeight: 500 }}>{p.nome}</div>
+            <div className="lead-meta">{[p.empresa, p.cidade].filter(Boolean).join(" · ") || "—"}</div>
+            <span className="badge badge-ok" style={{ fontSize: 10, marginTop: 4 }}>Confirmado</span>
+          </div>
+        ))}
+        {leads.length === 0 && orphanParticipants.length === 0 && stage === 6 && (
           <div style={{ fontSize: 11, color: "var(--accent)", padding: 6, display: "flex", alignItems: "center", gap: 4 }}>
             <i className="ti ti-lock" /> Pendente política
           </div>

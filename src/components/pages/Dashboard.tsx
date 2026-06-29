@@ -13,13 +13,16 @@ export function DashboardPage() {
   const breakEvenTotal = minVagas * tierStandard;
   const falta = Math.max(0, breakEvenTotal - pagamentosRecebidos);
 
+  const leadNames = new Set(leads.map((l) => l.nome.toLowerCase().trim()));
+  const orphanParticipants = participants.filter((p) => !leadNames.has(p.nome.toLowerCase().trim()));
+  const totalFunil = leads.length + orphanParticipants.length;
   const leadsAtivos = leads.filter((l) => l.passo >= 2 && l.passo <= 5).length;
   const pendCriticas = pendencias.filter((p) => p.status !== "resolvida" && p.prioridade === "critico").length;
 
   return (
     <div className="main">
       <div className="metrics" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
-        <MetricCard icon="ti-users" label="Leads no funil" value={String(leads.length)} sub={`${leadsAtivos} em negociação ativa`} />
+        <MetricCard icon="ti-users" label="Leads no funil" value={String(totalFunil)} sub={`${leadsAtivos} em negociação ativa`} />
         <MetricCard
           icon="ti-check"
           label="Vagas confirmadas"
