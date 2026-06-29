@@ -33,7 +33,8 @@ export function ParticipantesPage({
   openId: string | null;
   setOpenId: (id: string | null) => void;
 }) {
-  const { data: list = [] } = useParticipants();
+  const { data: all = [] } = useParticipants();
+  const list = all.filter((p) => p.contrato_status === "assinado");
   const [creating, setCreating] = useState(false);
 
   if (openId) {
