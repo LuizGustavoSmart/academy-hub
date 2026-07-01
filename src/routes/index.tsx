@@ -1,5 +1,81 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+
+const SESSION_KEY = "academy_hub_auth";
+const SENHA = "Matter@2026";
+
+function PasswordGate({ onUnlock }: { onUnlock: () => void }) {
+  const [value, setValue] = useState("");
+  const [error, setError] = useState(false);
+
+  const submit = () => {
+    if (value === SENHA) {
+      localStorage.setItem(SESSION_KEY, "1");
+      onUnlock();
+    } else {
+      setError(true);
+      setValue("");
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "var(--bg)",
+    }}>
+      <div style={{
+        background: "var(--surface)",
+        border: ".5px solid var(--border)",
+        borderRadius: "var(--radius)",
+        padding: "40px 48px",
+        width: 360,
+        display: "flex",
+        flexDirection: "column",
+        gap: 20,
+      }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>
+            <i className="ti ti-map-2" style={{ color: "var(--accent)" }} />
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 600 }}>Academy China 2026</div>
+          <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 4 }}>Matter Academy · Plataforma Operacional</div>
+        </div>
+
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Senha de acesso</label>
+          <input
+            className="form-input"
+            type="password"
+            placeholder="Digite a senha"
+            value={value}
+            autoFocus
+            onChange={(e) => { setValue(e.target.value); setError(false); }}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+            style={error ? { borderColor: "var(--accent)" } : undefined}
+          />
+          {error && (
+            <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 6 }}>
+              <i className="ti ti-alert-circle" /> Senha incorreta. Tente novamente.
+            </div>
+          )}
+        </div>
+
+        <button className="btn-primary" onClick={submit} style={{ width: "100%", justifyContent: "center" }}>
+          Entrar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const [unlocked, setUnlocked] = useState(() => localStorage.getItem(SESSION_KEY) === "1");
+  if (!unlocked) return <PasswordGate onUnlock={() => setUnlocked(true)} />;
+  return <>{children}</>;
+}
 import { DashboardPage } from "@/components/pages/Dashboard";
 import { ParticipantesPage } from "@/components/pages/Participantes";
 import { FinanceiroPage } from "@/components/pages/Financeiro";
@@ -68,6 +144,7 @@ function Index() {
   const subtabs = SUBTABS[tab];
 
   return (
+    <AuthGate>
     <div className="app-shell">
       <nav className={`sidebar${collapsed ? " collapsed" : ""}`}>
         <div className="sidebar-brand">
@@ -148,6 +225,7 @@ function Index() {
         </div>
       </div>
     </div>
+    </AuthGate>
   );
 }
 
